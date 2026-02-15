@@ -3,6 +3,7 @@ import IPBanner from './components/IPBanner';
 import UploadZone from './components/UploadZone';
 import FileList from './components/FileList';
 import ClearAll from './components/ClearAll';
+import ShutdownButton from './components/ShutdownButton';
 
 export default function App() {
     const [refreshKey, setRefreshKey] = useState(0);
@@ -36,6 +37,7 @@ export default function App() {
             </main>
 
             <footer className="app-footer">
+                <ShutdownButton />
                 <p>QuickExchange &middot; Files are stored temporarily and only accessible on this network</p>
             </footer>
         </div>

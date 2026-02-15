@@ -14,6 +14,8 @@ const app = express();
 const PORT = 3001;
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 const isProduction = process.argv.includes('--production');
+const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+let lastActivityTime = Date.now();
 
 // Ensure uploads directory exists
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -22,6 +24,12 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 
 app.use(cors());
 app.use(express.json());
+
+// Track activity — reset idle timer on every request
+app.use((_req, _res, next) => {
+    lastActivityTime = Date.now();
+    next();
+});
 
 // ─── Serve frontend in production ────────────────────────
 if (isProduction) {
@@ -161,11 +169,33 @@ app.delete('/api/files', (_req, res) => {
     res.json({ success: true, deleted: entries.length });
 });
 
+// Shutdown the server
+app.post('/api/shutdown', (_req, res) => {
+    res.json({ success: true, message: 'Server shutting down…' });
+    console.log('\n🛑 Shutdown requested via web UI.');
+    setTimeout(() => {
+        server.close(() => process.exit(0));
+    }, 100);
+});
 
+// ─── Graceful shutdown helper ────────────────────────────
+function shutdownServer(reason) {
+    console.log(`\n🛑 ${reason}`);
+    server.close(() => process.exit(0));
+}
+
+// ─── Idle auto-shutdown ──────────────────────────────────
+const idleChecker = setInterval(() => {
+    if (Date.now() - lastActivityTime >= IDLE_TIMEOUT_MS) {
+        clearInterval(idleChecker);
+        shutdownServer('Server idle for 10 minutes — shutting down automatically.');
+    }
+}, 60_000);
 
 // ─── Start ───────────────────────────────────────────────
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 QuickExchange server running on port ${PORT}`);
+    console.log(`   Auto-shutdown after 10 min idle`);
     const interfaces = os.networkInterfaces();
     for (const name of Object.keys(interfaces)) {
         for (const iface of interfaces[name]) {
