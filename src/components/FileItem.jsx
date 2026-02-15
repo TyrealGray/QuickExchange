@@ -39,21 +39,32 @@ export default function FileItem({ file, onDelete }) {
         return '📎';
     };
 
+    const loadText = async () => {
+        if (!isText) return null;
+        if (textContent !== null) return textContent;
+
+        setLoadingText(true);
+        try {
+            const res = await fetch(`/api/files/${encodeURIComponent(file.name)}/text`);
+            const data = await res.json();
+            const content = data.content || '';
+            setTextContent(content);
+            return content;
+        } catch {
+            const fallback = '[Failed to load preview]';
+            setTextContent(fallback);
+            return fallback;
+        } finally {
+            setLoadingText(false);
+        }
+    };
+
     const handleToggle = async () => {
         const willExpand = !expanded;
         setExpanded(willExpand);
 
         if (willExpand && isText && textContent === null) {
-            setLoadingText(true);
-            try {
-                const res = await fetch(`/api/files/${encodeURIComponent(file.name)}/text`);
-                const data = await res.json();
-                setTextContent(data.content);
-            } catch {
-                setTextContent('[Failed to load preview]');
-            } finally {
-                setLoadingText(false);
-            }
+            await loadText();
         }
     };
 

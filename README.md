@@ -2,7 +2,7 @@
 
 **Instant file sharing on your local network.** No cloud, no sign-up, no fuss.
 
-QuickExchange spins up a lightweight web server that lets any device on your LAN upload, download, and preview files through a sleek browser UI. Perfect for quickly moving files between your phone, laptop, and desktop — or sharing with friends on the same Wi-Fi.
+QuickExchange spins up a lightweight web server temporarily that lets any device on your LAN upload, download, and preview files through a sleek browser UI. Perfect for quickly moving files between your phone, laptop, and desktop — or sharing with friends on the same Wi-Fi.
 
 ---
 

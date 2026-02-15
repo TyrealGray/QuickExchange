@@ -25,27 +25,21 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 app.use(cors());
 app.use(express.json());
 
-// Track activity — reset idle timer on every request
+// Track activity - reset idle timer on every request
 app.use((_req, _res, next) => {
     lastActivityTime = Date.now();
     next();
 });
 
-// ─── Serve frontend in production ────────────────────────
 if (isProduction) {
     const distPath = path.join(__dirname, '..', 'dist');
     app.use(express.static(distPath));
-    // Catch-all: serve index.html for any non-API route (SPA fallback)
-    // This is registered after static but before API routes are checked,
-    // however we need the API routes to take priority, so we use a
-    // middleware that only serves index.html if the request doesn't start with /api
     app.use((req, res, next) => {
         if (req.path.startsWith('/api')) return next();
         res.sendFile(path.join(distPath, 'index.html'));
     });
 }
 
-// Multer storage configuration — preserve original filename with dedup
 const storage = multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
     filename: (_req, file, cb) => {
@@ -63,17 +57,25 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage,
-    limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB limit
+    limits: { fileSize: 500 * 1024 * 1024 },
 });
 
-// ─── API Routes ──────────────────────────────────────────
+function getUniqueFilename(baseName, extension = '.txt') {
+    let finalName = `${baseName}${extension}`;
+    let counter = 1;
+    while (fs.existsSync(path.join(UPLOADS_DIR, finalName))) {
+        finalName = `${baseName} (${counter})${extension}`;
+        counter++;
+    }
+    return finalName;
+}
 
 // Get LAN IP addresses
 app.get('/api/ip', (_req, res) => {
     const interfaces = os.networkInterfaces();
     const addresses = [];
     for (const name of Object.keys(interfaces)) {
-        for (const iface of interfaces[name]) {
+        for (const iface of interfaces[name] || []) {
             if (iface.family === 'IPv4' && !iface.internal) {
                 addresses.push({ name, address: iface.address });
             }
@@ -93,6 +95,30 @@ app.post('/api/upload', upload.array('files', 20), (req, res) => {
         type: f.mimetype,
     }));
     res.json({ files: uploaded });
+});
+
+// Save text directly from UI as a shareable text file
+app.post('/api/text', (req, res) => {
+    const rawText = typeof req.body?.text === 'string' ? req.body.text : '';
+    if (!rawText.trim()) {
+        return res.status(400).json({ error: 'Text is required' });
+    }
+
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = getUniqueFilename(`note-${stamp}`);
+    const filePath = path.join(UPLOADS_DIR, filename);
+
+    fs.writeFileSync(filePath, rawText, 'utf-8');
+    const stat = fs.statSync(filePath);
+
+    res.status(201).json({
+        file: {
+            name: filename,
+            size: stat.size,
+            modified: stat.mtime,
+            type: 'text/plain',
+        },
+    });
 });
 
 // List uploaded files
@@ -125,7 +151,6 @@ app.get('/api/files/:filename', (req, res) => {
     if (!fs.existsSync(filePath)) {
         return res.status(404).json({ error: 'File not found' });
     }
-    // If ?download query param, force download
     if (req.query.download !== undefined) {
         return res.download(filePath, req.params.filename);
     }
@@ -141,9 +166,8 @@ app.get('/api/files/:filename/text', (req, res) => {
         return res.status(404).json({ error: 'File not found' });
     }
     const stat = fs.statSync(filePath);
-    // Limit preview to 100 KB
     if (stat.size > 100 * 1024) {
-        return res.json({ content: '[File too large to preview — download it instead]', truncated: true });
+        return res.json({ content: '[File too large to preview - download it instead]', truncated: true });
     }
     const content = fs.readFileSync(filePath, 'utf-8');
     res.json({ content, truncated: false });
@@ -171,34 +195,31 @@ app.delete('/api/files', (_req, res) => {
 
 // Shutdown the server
 app.post('/api/shutdown', (_req, res) => {
-    res.json({ success: true, message: 'Server shutting down…' });
-    console.log('\n🛑 Shutdown requested via web UI.');
+    res.json({ success: true, message: 'Server shutting down...' });
+    console.log('\nShutdown requested via web UI.');
     setTimeout(() => {
         server.close(() => process.exit(0));
     }, 100);
 });
 
-// ─── Graceful shutdown helper ────────────────────────────
 function shutdownServer(reason) {
-    console.log(`\n🛑 ${reason}`);
+    console.log(`\n${reason}`);
     server.close(() => process.exit(0));
 }
 
-// ─── Idle auto-shutdown ──────────────────────────────────
 const idleChecker = setInterval(() => {
     if (Date.now() - lastActivityTime >= IDLE_TIMEOUT_MS) {
         clearInterval(idleChecker);
-        shutdownServer('Server idle for 10 minutes — shutting down automatically.');
+        shutdownServer('Server idle for 10 minutes - shutting down automatically.');
     }
 }, 60_000);
 
-// ─── Start ───────────────────────────────────────────────
 const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🚀 QuickExchange server running on port ${PORT}`);
-    console.log(`   Auto-shutdown after 10 min idle`);
+    console.log(`\nQuickExchange server running on port ${PORT}`);
+    console.log('   Auto-shutdown after 10 min idle');
     const interfaces = os.networkInterfaces();
     for (const name of Object.keys(interfaces)) {
-        for (const iface of interfaces[name]) {
+        for (const iface of interfaces[name] || []) {
             if (iface.family === 'IPv4' && !iface.internal) {
                 console.log(`   LAN: http://${iface.address}:${PORT}`);
             }
@@ -206,3 +227,5 @@ const server = app.listen(PORT, '0.0.0.0', () => {
     }
     console.log(`   Local: http://localhost:${PORT}\n`);
 });
+
+
