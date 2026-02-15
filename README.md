@@ -89,3 +89,6 @@ QuickExchange/
 | `POST` | `/api/upload` | Upload files (multipart, field name: `files`) |
 | `DELETE` | `/api/files/:name` | Delete a single file |
 | `DELETE` | `/api/files` | Delete all files |
+
+## License
+AFL-3.0
