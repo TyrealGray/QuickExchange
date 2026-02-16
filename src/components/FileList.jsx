@@ -28,7 +28,6 @@ export default function FileList({ refreshKey, onDelete }) {
     if (files.length === 0) {
         return (
             <div className="file-list-empty">
-                <span className="empty-icon">ðŸ“‚</span>
                 <p>No items shared yet</p>
                 <p className="empty-hint">Upload a file or add text above to get started</p>
             </div>
